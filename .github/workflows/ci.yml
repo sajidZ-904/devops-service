@@ -1,0 +1,74 @@
+name: CI - Pull Request Validation
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-lint:
+    name: Code Quality and Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:coverage
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jest-coverage
+          path: coverage/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  docker-lint:
+    name: Dockerfile and Shell Script Linting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint Dockerfile with Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: warning
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Lint shell scripts when present
+        shell: bash
+        run: |
+          mapfile -d '' shell_files < <(find . -type f -name '*.sh' -not -path './node_modules/*' -print0)
+          if ((${#shell_files[@]})); then
+            shellcheck "${shell_files[@]}"
+          else
+            echo 'No shell scripts found; ShellCheck has nothing to lint.'
+          fi
+
+  docker-security:
+    name: Docker Build and Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build --tag devops-task-service:pr-${{ github.event.pull_request.number || github.run_id }} .
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: devops-task-service:pr-${{ github.event.pull_request.number || github.run_id }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL
