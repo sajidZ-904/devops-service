@@ -1,3 +1,6 @@
 node_modules/
 package-lock.json
 .env
+/aws/
+/awscliv2.zip
+/coverage/
