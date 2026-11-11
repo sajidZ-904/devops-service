@@ -21,7 +21,7 @@ The service exposes `/`, `/health`, and Prometheus metrics at `/metrics`. Config
 
 `.github/workflows/ci.yml` runs lint, tests/coverage, Hadolint, ShellCheck, an image build, and a Trivy CRITICAL vulnerability gate on pull requests. Pushes to `main` build and push `linux/amd64` and `linux/arm64` images to GHCR with `sha-<commit>` and an optional semantic version tag, using Actions layer caching. Deployment uses SSM and `scripts/deploy.sh`; it waits for `/health` and starts the previous image if the smoke test fails.
 
-Configure repository variables `APP_VERSION` and `EC2_INSTANCE_ID`. The workflow uses `GITHUB_TOKEN`; AWS credentials should be supplied through GitHub OIDC with an account-specific role, never static keys.
+Configure repository variables `APP_VERSION`, `EC2_INSTANCE_ID`, and `AWS_REGION`, plus secret `AWS_DEPLOY_ROLE_ARN`. The workflow uses `GITHUB_TOKEN`; AWS credentials are supplied through GitHub OIDC with that account-specific role, never static keys.
 
 ## AWS Terraform
 
@@ -71,7 +71,7 @@ scripts/system_health.sh --disk 80 --cpu 90 --mem 85
 scripts/system_health.sh --json --log /var/log/devops/health_log.txt
 ```
 
-The script records CPU, memory, all mounted filesystems, load average, and top memory processes; rotates at 1 MiB, emits warnings, and returns 0 healthy, 1 warning, or 2 invalid input. `scripts/system_health.cron` runs it every five minutes.
+The script records CPU, memory, all mounted filesystems, load average, and top memory processes; rotates at 1 MiB, emits warnings, and returns 0 healthy, 1 warning, or 2 critical/invalid input. `scripts/system_health.cron` runs it every five minutes.
 
 ## Architecture
 
