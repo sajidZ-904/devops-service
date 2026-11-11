@@ -42,19 +42,19 @@ This avoids GitHub-hosted runner minutes. AWS deployment still requires an AWS a
 
 ## CI/CD
 
-`.github/workflows/ci.yml` runs lint, tests/coverage, Hadolint, ShellCheck, an image build, and a Trivy CRITICAL vulnerability gate on pull requests. [deploy.yml](./.github/workflows/deploy.yml) handles pushes to `main`: it builds and pushes `linux/amd64` and `linux/arm64` images to ECR with the commit SHA and `package.json` semantic version, uses Actions layer caching, deploys through SSM, waits for `/health`, and restores the previous image if the smoke test fails.
+`.github/workflows/ci.yml` runs lint, tests/coverage, Hadolint, ShellCheck, an image build, and a Trivy CRITICAL vulnerability gate on pull requests. [deploy.yml](./.github/workflows/deploy.yml) handles pushes to `main`: it builds and pushes `linux/amd64` and `linux/arm64` images to ECR with the commit SHA and `package.json` semantic version, uses Actions layer caching, deploys through SSM, publishes the container on host port 80 to match the security group, waits for `/health`, and restores the previous image if the smoke test fails.
 
-Configure repository variables `EC2_INSTANCE_ID` and `AWS_REGION`, plus secret `AWS_ROLE_ARN`. The deployment workflow reads the semantic version from `package.json`, publishes to ECR, and uses AWS credentials supplied through GitHub OIDC with that account-specific role, never static keys.
+Configure the repository secret `AWS_ROLE_ARN` and the repository variable `EC2_INSTANCE_ID`; the optional `AWS_REGION` variable overrides the workflow's `ap-south-1` default. The assumed IAM role needs ECR push permissions plus `ssm:SendCommand` and `ssm:GetCommandInvocation`, and it is trusted through GitHub OIDC, never static keys. Create the ECR repository `devops-task-service` in the target region before the first run: the build job verifies it exists and, when it is absent, prints the `aws ecr create-repository` command instead of failing later inside Docker. Both jobs validate their configuration before calling AWS and name the specific missing secret or variable.
 
 ## AWS Terraform
 
-The code provisions an EC2 target in the default VPC, HTTP security group, least-privilege instance role, SSM access, CloudWatch Logs with 30-day retention, and Docker bootstrap. `environment` supports `staging` and `production`.
+The code provisions an EC2 target in the default VPC, HTTP security group, least-privilege instance role, SSM access, CloudWatch Logs with 30-day retention, and Docker bootstrap. `environment` supports `staging` and `production`. The region defaults to `ap-south-1`; pass `-var='aws_region=...'` to target another one, including when destroying resources created there.
 
 ```bash
 cd terraform
 cp backend.tf.example backend.tf
 terraform init
-terraform plan -var='state_bucket=my-state-bucket' -var='app_image=ghcr.io/OWNER/REPOSITORY:sha-...'
+terraform plan -var='state_bucket=my-state-bucket' -var='app_image=<account-id>.dkr.ecr.ap-south-1.amazonaws.com/devops-task-service:1.0.0'
 terraform apply -var='state_bucket=my-state-bucket' -var='app_image=...'
 terraform destroy -var='state_bucket=my-state-bucket' -var='app_image=...'
 ```
@@ -100,7 +100,7 @@ The script records CPU, memory, all mounted filesystems, load average, and top m
 
 ```text
 Commit -> GitHub Actions (lint/test/coverage/Hadolint/ShellCheck/Trivy)
-       -> GHCR (SHA + semver, multi-arch) -> SSM -> EC2 Docker -> smoke test -> rollback
+       -> Amazon ECR (SHA + semver, multi-arch, ap-south-1) -> SSM -> EC2 Docker -> smoke test -> rollback
        -> local Kubernetes Deployment (2 replicas, Service, Ingress, HPA)
 App /metrics -> Prometheus -> Grafana dashboards/alerts
 Docker JSON logs -> Alloy (JSON parsing) -> Loki -> Grafana logs panel
