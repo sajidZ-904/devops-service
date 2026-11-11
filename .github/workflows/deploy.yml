@@ -19,7 +19,7 @@ env:
 jobs:
   build-push:
     name: Build and push multi-architecture image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       image: ${{ steps.image.outputs.image }}
       version: ${{ steps.version.outputs.version }}
@@ -58,7 +58,7 @@ jobs:
   deploy:
     name: Deploy to EC2 through Systems Manager
     needs: build-push
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Configure AWS credentials with GitHub OIDC
         uses: aws-actions/configure-aws-credentials@v4

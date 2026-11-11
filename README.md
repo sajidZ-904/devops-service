@@ -17,11 +17,15 @@ curl http://localhost:8080/health
 
 The service exposes `/`, `/health`, and Prometheus metrics at `/metrics`. Configuration comes from `PORT`, `LOG_LEVEL`, `ENVIRONMENT`, and `APP_VERSION`; logs are JSON on stdout. The Alpine runtime image is approximately 150 MB compressed; verify the exact platform result with `docker image ls`.
 
+### WSL 2
+
+Run commands from the WSL filesystem (`/mnt/c/devops-service-task` or a Linux home directory). Docker Desktop must have WSL integration enabled for the distribution, or a Docker Engine must be running inside WSL. Before running the health script, use `chmod +x scripts/*.sh`; Docker host mounts in the monitoring Compose file require Docker Desktop/Engine access to `/var/run/docker.sock` and `/var/lib/docker`.
+
 ## CI/CD
 
 `.github/workflows/ci.yml` runs lint, tests/coverage, Hadolint, ShellCheck, an image build, and a Trivy CRITICAL vulnerability gate on pull requests. Pushes to `main` build and push `linux/amd64` and `linux/arm64` images to GHCR with `sha-<commit>` and an optional semantic version tag, using Actions layer caching. Deployment uses SSM and `scripts/deploy.sh`; it waits for `/health` and starts the previous image if the smoke test fails.
 
-Configure repository variables `APP_VERSION`, `EC2_INSTANCE_ID`, and `AWS_REGION`, plus secret `AWS_DEPLOY_ROLE_ARN`. The workflow uses `GITHUB_TOKEN`; AWS credentials are supplied through GitHub OIDC with that account-specific role, never static keys.
+Configure repository variables `EC2_INSTANCE_ID` and `AWS_REGION`, plus secret `AWS_ROLE_ARN`. The deployment workflow reads the semantic version from `package.json`, publishes to ECR, and uses AWS credentials supplied through GitHub OIDC with that account-specific role, never static keys.
 
 ## AWS Terraform
 
