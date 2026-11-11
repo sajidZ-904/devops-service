@@ -45,11 +45,27 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${ROLE_ARN:-}" ]; then
-            echo 'Repository secret AWS_ROLE_ARN is not set.' >&2
-            echo 'Add it under Settings > Secrets and variables > Actions > Secrets.' >&2
+            echo '::error title=AWS_ROLE_ARN missing::Repository secret AWS_ROLE_ARN is empty. Add it under Settings > Secrets and variables > Actions > Secrets (not the Variables tab, not an environment secret).'
             exit 1
           fi
+          case "$ROLE_ARN" in
+            arn:aws:iam::*:role/*) ;;
+            *)
+              echo '::error title=AWS_ROLE_ARN invalid::AWS_ROLE_ARN is not an IAM role ARN. Expected arn:aws:iam::<account-id>:role/<role-name>.'
+              exit 1
+              ;;
+          esac
           echo "Target AWS region: $AWS_REGION"
+
+      # TEMPORARY DEBUG STEP: prints the OIDC claims GitHub sends to AWS.
+      # Remove it once the role assumption works.
+      - name: Show OIDC claims
+        shell: bash
+        run: |
+          TOKEN=$(curl -s -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
+          echo "$TOKEN" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | jq '{sub, aud, repository, ref}' || true
+
       - name: Configure AWS credentials with GitHub OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -108,15 +124,14 @@ jobs:
           set -euo pipefail
           missing=0
           if [ -z "${ROLE_ARN:-}" ]; then
-            echo 'Repository secret AWS_ROLE_ARN is not set.' >&2
+            echo '::error title=AWS_ROLE_ARN missing::Repository secret AWS_ROLE_ARN is empty. Add it under Settings > Secrets and variables > Actions > Secrets.'
             missing=1
           fi
           if [ -z "${INSTANCE_ID:-}" ]; then
-            echo 'Repository variable EC2_INSTANCE_ID is not set.' >&2
+            echo '::error title=EC2_INSTANCE_ID missing::Repository variable EC2_INSTANCE_ID is empty. Add it under Settings > Secrets and variables > Actions > Variables.'
             missing=1
           fi
           if [ "$missing" -ne 0 ]; then
-            echo 'Configure both under Settings > Secrets and variables > Actions.' >&2
             exit 1
           fi
           echo "Deploying to instance $INSTANCE_ID in $AWS_REGION"
@@ -138,6 +153,7 @@ jobs:
             "IMAGE='$IMAGE'" \
             "CONTAINER='$CONTAINER_NAME'" \
             'PREVIOUS=$(docker inspect --format="{{.Config.Image}}" "$CONTAINER" 2>/dev/null || true)' \
+            'aws ecr get-login-password --region '"$AWS_REGION"' | docker login --username AWS --password-stdin '"${IMAGE%%/*}" \
             'docker pull "$IMAGE"' \
             'docker rm -f "$CONTAINER" >/dev/null 2>&1 || true' \
             'docker run -d --name "$CONTAINER" --restart unless-stopped -p 80:3000 -e PORT=3000 "$IMAGE"' \
