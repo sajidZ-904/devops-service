@@ -9,7 +9,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install production dependencies only
-RUN npm ci --omit=dev --ignore-scripts \
+RUN apk upgrade --no-cache \
+    && npm ci --omit=dev --ignore-scripts \
     && npm cache clean --force
 
 
@@ -28,6 +29,10 @@ LABEL org.opencontainers.image.title="DevOps Task Service" \
       org.opencontainers.image.base.name="node:22.14.0-alpine3.21"
 
 WORKDIR /app
+
+# Apply the latest security patches available for the pinned Alpine release.
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 # Copy only production dependencies
 COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
