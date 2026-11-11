@@ -1,0 +1,7 @@
+groups:
+  - name: devops-task
+    rules:
+      - {alert: AppDown, expr: 'up{job="app"} == 0', for: 2m, labels: {severity: critical}, annotations: {summary: app instance is down}}
+      - {alert: HighErrorRate, expr: 'sum(rate(http_errors_total[5m])) / clamp_min(sum(rate(http_requests_total[5m])), 1) > 0.05', for: 10m, labels: {severity: warning}, annotations: {summary: error rate exceeds 5%}}
+      - {alert: HostDiskHigh, expr: '100 * (1 - node_filesystem_avail_bytes / node_filesystem_size_bytes) > 80', for: 15m, labels: {severity: warning}, annotations: {summary: host disk exceeds 80%}}
+      - {alert: ContainerMemoryNearLimit, expr: 'container_memory_working_set_bytes / container_spec_memory_limit_bytes > 0.9', for: 10m, labels: {severity: warning}, annotations: {summary: container memory exceeds 90% of limit}}

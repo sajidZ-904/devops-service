@@ -1,0 +1,10 @@
+#!/bin/bash
+set -euxo pipefail
+dnf install -y docker amazon-cloudwatch-agent
+systemctl enable --now docker
+usermod -aG docker ec2-user
+cat >/opt/aws/amazon-cloudwatch-agent.json <<EOF
+{"logs":{"logs_collected":{"files":{"collect_list":[{"file_path":"/var/lib/docker/containers/*/*.log","log_group_name":"${log_group}","log_stream_name":"{instance_id}/docker"}]}},"force_flush_interval":5}}
+EOF
+systemctl enable --now amazon-cloudwatch-agent
+docker run -d --name devops-task-service --restart unless-stopped -p 80:3000 -e PORT=3000 -e LOG_LEVEL=info -e ENVIRONMENT=production -e APP_VERSION=terraform ${image}

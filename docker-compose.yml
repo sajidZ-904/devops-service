@@ -1,7 +1,8 @@
 
 services:
   devops-task-service:
-    image: ${IMAGE_URI:?IMAGE_URI must be provided}
+    build: .
+    image: ${IMAGE_URI:-devops-task-service:local}
 
     container_name: devops-task-service
 

@@ -1,0 +1,8 @@
+discovery.docker "containers" { host = "unix:///var/run/docker.sock" }
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+  rule { source_labels = ["__meta_docker_container_name"]; regex = "/(.*)"; target_label = "container" }
+}
+loki.source.docker "containers" { host = "unix:///var/run/docker.sock"; targets = discovery.relabel.containers.output; labels = {job = "docker"}; forward_to = [loki.process.app.receiver] }
+loki.process "app" { stage.json { expressions = {level = "level", message = "message"} }; stage.labels { values = {level = ""} }; forward_to = [loki.write.local.receiver] }
+loki.write "local" { endpoint { url = "http://loki:3100/loki/api/v1/push" } }

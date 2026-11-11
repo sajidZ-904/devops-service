@@ -6,9 +6,6 @@ FROM node:22.14.0-alpine3.21 AS dependencies
 
 WORKDIR /app
 
-RUN apk add --no-cache fontconfig \
-    && fc-cache -f
-
 COPY package.json package-lock.json ./
 
 # Install production dependencies only

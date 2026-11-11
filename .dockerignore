@@ -23,9 +23,6 @@ coverage/
 .idea/
 *.swp
 
-# Documentation
-README.md
-
 # Operating system
 .DS_Store
 Thumbs.db
@@ -35,7 +32,5 @@ tmp/
 temp/
 *.log
 
-# Docker
-Dockerfile*
-docker-compose*.yml
-.dockerignore
+coverage
+_assessment.pdf
