@@ -29,12 +29,14 @@ docker rm -f "$container_name" >/dev/null 2>&1 || true
 docker run --detach --name "$container_name" --publish 18080:3000 \
   --env PORT=3000 --env LOG_LEVEL=info --env ENVIRONMENT=local --env APP_VERSION=local "$image" >/dev/null
 trap 'docker rm -f "$container_name" >/dev/null 2>&1 || true' EXIT
-for attempt in $(seq 1 20); do
+attempt=1
+while ((attempt <= 20)); do
   if curl --fail --silent http://127.0.0.1:18080/health >/dev/null; then
     echo 'Local smoke test passed.'
     exit 0
   fi
   sleep 2
+  ((attempt++))
 done
 echo 'Local smoke test failed.' >&2
 docker logs "$container_name" >&2 || true
