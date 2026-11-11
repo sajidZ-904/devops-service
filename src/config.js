@@ -5,7 +5,9 @@ const validLogLevels = ["debug", "info", "warn", "error"];
 const validEnvironments = [
   "development",
   "staging",
-  "production"
+  "production",
+  "local",
+  "test"
 ];
 
 function required(name) {
