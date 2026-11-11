@@ -13,7 +13,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  AWS_REGION: ${{ vars.AWS_REGION }}
+  # Override with the AWS_REGION repository variable when the ECR repository and
+  # EC2 instance live in a different region than this default.
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
   ECR_REPOSITORY: devops-task-service
 
 jobs:
@@ -36,11 +38,40 @@ jobs:
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Validate deployment configuration
+        shell: bash
+        env:
+          ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ROLE_ARN:-}" ]; then
+            echo 'Repository secret AWS_ROLE_ARN is not set.' >&2
+            echo 'Add it under Settings > Secrets and variables > Actions > Secrets.' >&2
+            exit 1
+          fi
+          echo "Target AWS region: $AWS_REGION"
       - name: Configure AWS credentials with GitHub OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      - name: Verify ECR repository exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if uri=$(aws ecr describe-repositories \
+                --repository-names "$ECR_REPOSITORY" \
+                --region "$AWS_REGION" \
+                --query 'repositories[0].repositoryUri' \
+                --output text 2>/dev/null); then
+            echo "ECR repository: $uri"
+            exit 0
+          fi
+          echo "Unable to describe ECR repository '$ECR_REPOSITORY' in $AWS_REGION." >&2
+          echo 'If it does not exist yet, create it:' >&2
+          echo "  aws ecr create-repository --repository-name $ECR_REPOSITORY --region $AWS_REGION --image-scanning-configuration scanOnPush=true --encryption-configuration encryptionType=AES256" >&2
+          echo 'If it does exist, grant the assumed role ecr:DescribeRepositories.' >&2
+          exit 1
       - name: Authenticate to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -68,11 +99,32 @@ jobs:
     needs: build-push
     runs-on: [self-hosted, linux, x64]
     steps:
+      - name: Validate deployment configuration
+        shell: bash
+        env:
+          ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+        run: |
+          set -euo pipefail
+          missing=0
+          if [ -z "${ROLE_ARN:-}" ]; then
+            echo 'Repository secret AWS_ROLE_ARN is not set.' >&2
+            missing=1
+          fi
+          if [ -z "${INSTANCE_ID:-}" ]; then
+            echo 'Repository variable EC2_INSTANCE_ID is not set.' >&2
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            echo 'Configure both under Settings > Secrets and variables > Actions.' >&2
+            exit 1
+          fi
+          echo "Deploying to instance $INSTANCE_ID in $AWS_REGION"
       - name: Configure AWS credentials with GitHub OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
       - name: Deploy with health check and automatic rollback
         env:
           IMAGE: ${{ needs.build-push.outputs.image }}:${{ github.sha }}
@@ -88,12 +140,12 @@ jobs:
             'PREVIOUS=$(docker inspect --format="{{.Config.Image}}" "$CONTAINER" 2>/dev/null || true)' \
             'docker pull "$IMAGE"' \
             'docker rm -f "$CONTAINER" >/dev/null 2>&1 || true' \
-            'docker run -d --name "$CONTAINER" --restart unless-stopped -p 8080:3000 -e PORT=3000 "$IMAGE"' \
-            'ok=0; for attempt in $(seq 1 20); do if curl --fail --silent http://127.0.0.1:8080/health >/dev/null; then ok=1; break; fi; sleep 3; done' \
+            'docker run -d --name "$CONTAINER" --restart unless-stopped -p 80:3000 -e PORT=3000 "$IMAGE"' \
+            'ok=0; for attempt in $(seq 1 20); do if curl --fail --silent http://127.0.0.1:80/health >/dev/null; then ok=1; break; fi; sleep 3; done' \
             'if [ "$ok" -eq 1 ]; then exit 0; fi' \
             'docker logs "$CONTAINER" || true' \
             'docker rm -f "$CONTAINER" >/dev/null 2>&1 || true' \
-            'if [ -n "$PREVIOUS" ]; then docker run -d --name "$CONTAINER" --restart unless-stopped -p 8080:3000 -e PORT=3000 "$PREVIOUS"; fi' \
+            'if [ -n "$PREVIOUS" ]; then docker run -d --name "$CONTAINER" --restart unless-stopped -p 80:3000 -e PORT=3000 "$PREVIOUS"; fi' \
             'exit 1' | jq -R -s -c 'split("\n")[:-1]')
           parameters=$(jq -cn --argjson commands "$commands_json" '{commands: $commands}')
           command_id=$(aws ssm send-command \

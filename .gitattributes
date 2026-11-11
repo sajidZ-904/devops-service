@@ -1,0 +1,23 @@
+# Normalize line endings in the repository. Text files are stored with LF and,
+# depending on core.autocrlf, checked out with the platform default.
+* text=auto
+
+# Files executed or parsed by Linux must stay LF on every platform, otherwise a
+# Windows checkout breaks them with "bad interpreter: ...^M".
+*.sh text eol=lf
+*.bash text eol=lf
+*.tftpl text eol=lf
+*.cron text eol=lf
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf
+
+# CI, Compose, Kubernetes, and monitoring definitions are read by Linux tooling.
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binary assets must never be converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.gif binary
