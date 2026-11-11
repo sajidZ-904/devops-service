@@ -21,6 +21,8 @@ The service exposes `/`, `/health`, and Prometheus metrics at `/metrics`. Config
 
 Run commands from the WSL filesystem (`/mnt/c/devops-service-task` or a Linux home directory). Docker Desktop must have WSL integration enabled for the distribution, or a Docker Engine must be running inside WSL. Before running the health script, use `chmod +x scripts/*.sh`; Docker host mounts in the monitoring Compose file require Docker Desktop/Engine access to `/var/run/docker.sock` and `/var/lib/docker`.
 
+Keep the GitHub runner outside the repository, for example at `~/actions-runner`; the runner contains registration credentials and must never be committed.
+
 If GitHub Actions is unavailable because of an account billing lock, run the complete local validation pipeline from WSL 2:
 
 ```bash
