@@ -11,7 +11,7 @@ spec:
       securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
       containers:
         - name: app
-          image: ghcr.io/OWNER/REPOSITORY:sha-REPLACE_ME
+          image: ghcr.io/sajidZ-904/devops-service:sha-latest
           imagePullPolicy: IfNotPresent
           ports: [{containerPort: 3000}]
           envFrom: [{configMapRef: {name: devops-task-config}}, {secretRef: {name: devops-task-secrets}}]

@@ -19,7 +19,7 @@ env:
 jobs:
   build-push:
     name: Build and push multi-architecture image
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64]
     outputs:
       image: ${{ steps.image.outputs.image }}
       version: ${{ steps.version.outputs.version }}
@@ -58,7 +58,7 @@ jobs:
   deploy:
     name: Deploy to EC2 through Systems Manager
     needs: build-push
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, x64]
     steps:
       - name: Configure AWS credentials with GitHub OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -69,7 +69,7 @@ jobs:
         env:
           IMAGE: ${{ needs.build-push.outputs.image }}:${{ github.sha }}
           INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
-          CONTAINER_NAME: devops-task-service
+          CONTAINER_NAME: devops-service
         shell: bash
         run: |
           set -euo pipefail
