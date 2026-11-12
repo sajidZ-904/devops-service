@@ -3,6 +3,7 @@ name: Build, Push, and Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -119,7 +120,7 @@ jobs:
         shell: bash
         env:
           ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID || secrets.EC2_INSTANCE_ID }}
         run: |
           set -euo pipefail
           missing=0
@@ -143,7 +144,7 @@ jobs:
       - name: Deploy with health check and automatic rollback
         env:
           IMAGE: ${{ needs.build-push.outputs.image }}:${{ github.sha }}
-          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID || secrets.EC2_INSTANCE_ID }}
           CONTAINER_NAME: devops-task-service
         shell: bash
         run: |
