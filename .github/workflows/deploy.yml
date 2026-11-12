@@ -169,7 +169,7 @@ jobs:
           command_id=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name AWS-RunShellScript \
-            --comment "Deploy $IMAGE" \
+            --comment "Deploy ${IMAGE##*/}" \
             --parameters "$parameters" \
             --query 'Command.CommandId' --output text)
           echo "SSM command: $command_id"
