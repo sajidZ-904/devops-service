@@ -152,6 +152,8 @@ jobs:
           set -euo pipefail
           commands_json=$(printf '%s\n' \
             'set -eu' \
+            'if ! command -v docker >/dev/null 2>&1; then if command -v dnf >/dev/null 2>&1; then dnf install -y docker; elif command -v yum >/dev/null 2>&1; then yum install -y docker; elif command -v apt-get >/dev/null 2>&1; then apt-get update -y && apt-get install -y docker.io; fi; systemctl enable --now docker 2>/dev/null || true; fi' \
+            'systemctl start docker 2>/dev/null || service docker start 2>/dev/null || true' \
             "IMAGE='$IMAGE'" \
             "CONTAINER='$CONTAINER_NAME'" \
             'PREVIOUS=$(docker inspect --format="{{.Config.Image}}" "$CONTAINER" 2>/dev/null || true)' \
